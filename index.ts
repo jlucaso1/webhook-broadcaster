@@ -50,20 +50,49 @@ serve({
       return new Response("Not Found", { status: 404 });
     }
 
-    targets.forEach(async (target) => {
+    const mainTarget = targets[0];
+    if (!mainTarget) {
+      return new Response("No main target", { status: 500 });
+    }
+
+    const mainPromise = Promise.withResolvers<Response>();
+
+    fetch(mainTarget + url.search, {
+      method: req.method,
+      headers: req.headers,
+      body: req.body,
+      signal: AbortSignal.timeout(10_000),
+    })
+      .then((res) => mainPromise.resolve(res))
+      .catch((e) => mainPromise.reject(e));
+
+    targets.slice(1).forEach((target) => {
       try {
         const targetUrl = target + url.search;
 
-        await fetch(targetUrl, {
+        fetch(targetUrl, {
           method: req.method,
           headers: req.headers,
           body: req.body,
           signal: AbortSignal.timeout(10_000),
+        }).catch((e) => {
+          console.error(`Failed to send to target ${targetUrl}:`, e);
         });
       } catch (err) {}
     });
 
-    return new Response("OK", { status: 200 });
+    try {
+      const mainResponse = await mainPromise.promise;
+
+      return new Response(mainResponse.body, {
+        status: mainResponse.status,
+        statusText: mainResponse.statusText,
+        headers: mainResponse.headers,
+      });
+    } catch (e) {
+      console.error("Main target request failed:", e);
+      return new Response("Main target down", { status: 502 });
+    }
   },
 });
 
