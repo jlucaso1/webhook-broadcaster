@@ -68,28 +68,32 @@ serve({
       }
     }
 
+    const body = req.body ? await req.blob() : undefined;
+
     fetch(mainTargetUrl, {
       method: req.method,
       headers: headersObj,
-      body: req.body,
+      body,
       signal: AbortSignal.timeout(10_000),
     })
       .then((res) => mainPromise.resolve(res))
       .catch((e) => mainPromise.reject(e));
 
-    targets.slice(1).forEach((target) => {
+    targets.slice(1).forEach(async (target) => {
       try {
         const targetUrl = target + url.search;
 
         fetch(targetUrl, {
           method: req.method,
           headers: headersObj,
-          body: req.body,
+          body,
           signal: AbortSignal.timeout(10_000),
         }).catch((e) => {
           console.error(`Failed to send to target ${targetUrl}:`, e);
         });
-      } catch (err) {}
+      } catch (err) {
+        console.error(`Error processing target ${target}:`, err);
+      }
     });
 
     try {
