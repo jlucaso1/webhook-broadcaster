@@ -57,9 +57,20 @@ serve({
 
     const mainPromise = Promise.withResolvers<Response>();
 
-    fetch(mainTarget + url.search, {
+    const mainTargetUrl = mainTarget + url.search;
+
+    // we need to ignore host header to avoid issues
+    const headersObj: Record<string, string> = {};
+
+    for (const [key, value] of req.headers.entries()) {
+      if (key.toLowerCase() !== "host") {
+        headersObj[key] = value;
+      }
+    }
+
+    fetch(mainTargetUrl, {
       method: req.method,
-      headers: req.headers,
+      headers: headersObj,
       body: req.body,
       signal: AbortSignal.timeout(10_000),
     })
@@ -72,7 +83,7 @@ serve({
 
         fetch(targetUrl, {
           method: req.method,
-          headers: req.headers,
+          headers: headersObj,
           body: req.body,
           signal: AbortSignal.timeout(10_000),
         }).catch((e) => {
@@ -83,6 +94,10 @@ serve({
 
     try {
       const mainResponse = await mainPromise.promise;
+
+      console.log(
+        `Forwarded ${req.method} ${pathname} to ${mainTarget} → ${mainResponse.status}`
+      );
 
       return new Response(mainResponse.body, {
         status: mainResponse.status,
